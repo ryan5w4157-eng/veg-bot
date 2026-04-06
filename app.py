@@ -4,7 +4,6 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
 import requests
 from bs4 import BeautifulSoup
-import re
 
 app = Flask(__name__)
 
@@ -37,15 +36,31 @@ def get_price(keyword):
         return "目前無法連線到菜價網站，請稍後再試。"
 
     soup = BeautifulSoup(r.text, "html.parser")
-    text = soup.get_text(" ", strip=True)
+    text = soup.get_text("\n", strip=True)
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
 
-    pattern = r"本週平均批發價:\s*(.*?)\s+預估零售價:\s*(.*?)\s"
-    match = re.search(pattern, text, re.S)
+    keyword_clean = keyword.replace(" ", "").lower()
 
-    if match:
-        wholesale = match.group(1).strip()
-        retail = match.group(2).strip()
-        return f"{keyword} 今日價格\n\n批發價：{wholesale}\n零售價：{retail}"
+    for i, line in enumerate(lines):
+        line_clean = line.replace(" ", "").lower()
+
+        # 找到包含關鍵字的品項名稱
+        if keyword_clean in line_clean:
+            wholesale = None
+            retail = None
+
+            # 往後找價格資訊
+            for j in range(i, min(i + 20, len(lines))):
+                if "本週平均批發價" in lines[j]:
+                    if j + 1 < len(lines):
+                        wholesale = lines[j + 1]
+
+                if "預估零售價" in lines[j]:
+                    if j + 1 < len(lines):
+                        retail = lines[j + 1]
+
+                if wholesale and retail:
+                    return f"{keyword} 今日價格\n\n批發價：{wholesale}\n零售價：{retail}"
 
     return f"查不到「{keyword}」價格"
 
